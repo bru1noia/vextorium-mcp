@@ -1,0 +1,3 @@
+# Remote MCP server (no local build): Streamable HTTP at https://api.vextorium.com/mcp
+runtime: "remote"
+url: "https://api.vextorium.com/mcp"
