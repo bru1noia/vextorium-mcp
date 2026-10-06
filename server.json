@@ -3,7 +3,7 @@
   "name": "com.vextorium.api/vextorium",
   "title": "Vextorium",
   "description": "509 pay-per-call data tools: on-chain (30+ chains), DeFi, markets, stats, compliance. Pay via x402.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "websiteUrl": "https://vextorium.com",
   "remotes": [
     {
