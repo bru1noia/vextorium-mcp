@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.vextorium.api/vextorium",
   "title": "Vextorium",
-  "description": "509 pay-per-call data tools: on-chain (30+ chains), DeFi, markets, stats, compliance. Pay via x402.",
-  "version": "1.0.1",
+  "description": "517 pay-per-call data tools: on-chain (30+ chains), DeFi, markets, stats, compliance. Pay via x402.",
+  "version": "1.0.2",
   "websiteUrl": "https://vextorium.com",
   "remotes": [
     {
