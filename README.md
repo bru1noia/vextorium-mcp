@@ -1,8 +1,8 @@
-# Vextorium MCP — 517 pay-per-call data tools for AI agents
+# Vextorium MCP — 500+ pay-per-call data tools for AI agents
 
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/bru1noia/vextorium-mcp)
 
-Remote MCP server (Streamable HTTP) that gives any MCP client access to **517 data services** paid per call in USDC with [x402](https://x402.org). No sign-up, no API keys, no subscriptions: failed calls are never charged.
+Remote MCP server (Streamable HTTP) that gives any MCP client access to **500+ data services** paid per call in USDC or RLUSD with [x402](https://x402.org). No sign-up, no API keys, no subscriptions: failed calls are never charged.
 
 **Endpoint:** `https://api.vextorium.com/mcp`
 
@@ -12,7 +12,7 @@ Remote MCP server (Streamable HTTP) that gives any MCP client access to **517 da
 |---|---|---|
 | `search_services` | free | Search the catalog by keywords (`"token safety solana"`, `"ECB rates"`, `"sanctions"`) |
 | `service_details` | free | Inputs (JSON schema), example and price of one service |
-| `call_service` | per call (from $0.001) | Run any service and get JSON; paid via x402 in USDC on Base or Solana |
+| `call_service` | per call (from $0.001) | Run any service and get JSON; paid via x402 in USDC (Base, Solana, Polygon) or RLUSD (XRPL) |
 
 ## What's inside
 
