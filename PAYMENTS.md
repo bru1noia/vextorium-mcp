@@ -52,22 +52,28 @@ The server uses `@x402/express` 2.28. The order of operations is:
 | Network | Who verifies and settles |
 |---|---|
 | Base | Coinbase CDP x402 facilitator, base URL `https://api.cdp.coinbase.com/platform/v2/x402`. It has `/supported`, `/verify` and `/settle`, and every request is authenticated with Vextorium's CDP API key (a JWT per request, through `@coinbase/cdp-sdk`). Buyers need no credentials. CDP submits the `transferWithAuthorization` transaction itself. |
-| Solana | Self-hosted, in the same server process. It uses the reference `@x402/svm` exact facilitator (`x402Facilitator` + `registerExactSvmScheme`, x402 2.28) and has no public HTTP endpoint. The fee payer is `4ZHcGaij9ktYqm9dNvMSMLsbT5D7BUrXDEzQGVH5h3Q6` and is advertised in `accepts[].extra.feePayer`. That account only pays network fees; the USDC goes to `payTo`. The RPC used is `solana-rpc.publicnode.com`. |
-
-Solana fallback: if the self-hosted fee payer is unavailable (no key, or SOL balance below 0.002 at startup), Solana settlement falls back to the CDP facilitator above.
-
-Base fallback: none. If CDP fails, the call is not settled and nothing is delivered.
+| Solana | Coinbase CDP x402 facilitator (same URL and authentication as Base). The fee payer is CDP's and is advertised in `accepts[].extra.feePayer`. |
 
 ## 4. Failures, timeouts and not paying twice
 
-| Situation | What happens |
-|---|---|
-| Invalid input, not found, or upstream source down (4xx/5xx) | Not settled, so you are not charged. You get the error with no `PAYMENT-RESPONSE`. |
-| Settlement fails | The result is discarded and you get `402` again. You were not charged, and you can sign a new payment. |
-| Each signed payment | It can settle at most once. EVM uses an EIP-3009 nonce; Solana uses the signed transaction itself. If you replay the same signature, it is rejected and no second charge is possible. |
-| Timeout or dropped connection with no response | Do **not** sign a new payment straight away. Check first whether your authorization settled: on Base, look for a USDC `Transfer` from your address to `payTo` (or the EIP-3009 nonce state); on Solana, check your recent USDC transfers to `payTo`. If it did not settle, you were not charged and can retry. If it did settle and you got no data, open an issue with the transaction hash at https://github.com/bru1noia/vextorium-mcp/issues and we will deliver the result or refund. |
+The server buffers the result and settles **after** the service has answered < 400. The data is released only if settlement succeeds (`@x402/express` 2.28).
 
-The signature's validity window is `maxTimeoutSeconds` (300 s).
+| Situation (after you sent `PAYMENT-SIGNATURE`) | HTTP you get | Charged? | Safe to retry? |
+|---|---|---|---|
+| Invalid input, not found, upstream down | 4xx/5xx with error, no `PAYMENT-RESPONSE` | No (never submitted) | Yes, immediately |
+| Facilitator **rejects** verify/settle (confirmed failure) | `402` with the reason | No | Yes, immediately |
+| Facilitator unreachable or returns an error during settle | `502 {"error": ...}` | **Uncertain** | Only after reconciling (below) |
+| Unexpected server error during settle | `402 {}` | **Uncertain** | Only after reconciling (below) |
+| Timeout / dropped connection, no response | none | **Uncertain** | Only after reconciling (below) |
+| Success | `200` + data + `PAYMENT-RESPONSE` | Yes, once | — |
+
+**Uncertain = the transaction may still land later.** Before signing a new payment:
+- **Base (EIP-3009):** check `authorizationState(payer, nonce)` on the USDC contract, or a USDC `Transfer` from you to `payTo`. If not used, wait until the authorization's `validBefore` has passed; after that it can never settle, and retrying is safe.
+- **Solana:** look up your signed transaction signature. If it is not found, wait until its recent blockhash has expired (~60–90 s); after that it can never land, and retrying is safe.
+
+If an uncertain payment did settle and you got no data, open an issue with the transaction hash at https://github.com/bru1noia/vextorium-mcp/issues and we deliver the result or refund. The server never sends a new payment request for an uncertain result: the 502/402 above are terminal responses for that call.
+
+**`maxTimeoutSeconds` (300 s on Base and Solana)** is the seller's limit for how long settlement of a request may take. It is **not** the signature's expiry: on Base the signed authorization expires at its own `validBefore` (set by the client, normally `now + maxTimeoutSeconds`); on Solana the transaction is valid until its recent blockhash expires (~60–90 s).
 
 ## 5. Remote MCP server
 
@@ -88,3 +94,13 @@ How `call_service` handles payment:
 MCP networks: Base, Solana, Polygon, Optimism and Arc, the same as HTTP except XRP Ledger. XRPL payments need a per-request `invoiceId`, which the MCP flow does not carry.
 
 The MCP server is part of the same application and process as the HTTP API. Each paid call goes to the same backend service at the same price and to the same `payTo`.
+
+## 6. Evidence (anonymised)
+
+**Base — operator test, clearly labelled, 2026-10-16 22:12:20 UTC.** `POST https://api.vextorium.com/v1/fx-rates`, body `{"currencies":"EUR,JPY"}`, 0.004 USDC. Response `200` (`{"currencies":2,"types":[{"currency":"EUR","units_per_usd":0.888652,...}],"source":"Source: ECB statistics ..."}`). Decoded `PAYMENT-RESPONSE`: `{"success":true,"payer":"0xa8FC…868F","transaction":"0xf4ab31807b2498de8baa0a7106b2ccbcd26dfc9284626f9d4a32e95b1a10b76c","network":"eip155:8453"}` — https://basescan.org/tx/0xf4ab31807b2498de8baa0a7106b2ccbcd26dfc9284626f9d4a32e95b1a10b76c
+
+**Solana — real customer payment, 2026-10-14 17:00:19 UTC.** `POST` to the legacy alias of `/v1/eip712-review`, 0.005 USDC, network `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, payer `34CM…5v2z` — https://solscan.io/tx/rPZcUEk6r8MoQthXyrH8edKbk1ZtGs9eWFouufsp9vzC2XQcx93f81J4rM6yYZje9BcgdHeNyYcx9QuVaMqP3aV . The customer's response body was not kept (see privacy below).
+
+**Privacy.** Since 2026-10-16 the server keeps, with each payment, the delivered response and its sha256 only for services that return public-source data. Responses of services that process the customer's texts, secrets or personal data are never stored (https://vextorium.com/privacidad).
+
+**Service availability.** Some routes return `503` (no charge) while they are under maintenance; they are not listed in `/catalog.json`.
