@@ -58,22 +58,32 @@ The server uses `@x402/express` 2.28. The order of operations is:
 
 The server buffers the result and settles **after** the service has answered < 400. The data is released only if settlement succeeds (`@x402/express` 2.28).
 
-| Situation (after you sent `PAYMENT-SIGNATURE`) | HTTP you get | Charged? | Safe to retry? |
-|---|---|---|---|
-| Invalid input, not found, upstream down | 4xx/5xx with error, no `PAYMENT-RESPONSE` | No (never submitted) | Yes, immediately |
-| Facilitator **rejects** verify/settle (confirmed failure) | `402` with the reason | No | Yes, immediately |
-| Facilitator unreachable or returns an error during settle | `502 {"error": ...}` | **Uncertain** | Only after reconciling (below) |
-| Unexpected server error during settle | `402 {}` | **Uncertain** | Only after reconciling (below) |
-| Timeout / dropped connection, no response | none | **Uncertain** | Only after reconciling (below) |
-| Success | `200` + data + `PAYMENT-RESPONSE` | Yes, once | — |
+What you receive after sending `PAYMENT-SIGNATURE` (measured with the test in [`tests/uncertain-settlement.test.mjs`](tests/uncertain-settlement.test.mjs): real `@x402/express` 2.28 and `HTTPFacilitatorClient` against a mock facilitator; output in [`tests/uncertain-settlement.output.txt`](tests/uncertain-settlement.output.txt)):
 
-**Uncertain = the transaction may still land later.** Before signing a new payment:
-- **Base (EIP-3009):** check `authorizationState(payer, nonce)` on the USDC contract, or a USDC `Transfer` from you to `payTo`. If not used, wait until the authorization's `validBefore` has passed; after that it can never settle, and retrying is safe.
-- **Solana:** look up your signed transaction signature. If it is not found, wait until its recent blockhash has expired (~60–90 s); after that it can never land, and retrying is safe.
+| Situation | HTTP | `PAYMENT-REQUIRED` | `PAYMENT-RESPONSE` | Submitted? | What to do |
+|---|---|---|---|---|---|
+| Success | `200` + data | no | `success: true` + `transaction` | Yes | Done. Keep the receipt. |
+| Invalid input, not found, upstream down (service answered ≥ 400) | that 4xx/5xx + `{"error": ...}` | no | none | **No** (settle never called) | Fix the request and retry. |
+| Facilitator rejects **verify** | `402` | **yes** (fresh terms) | none | **No** | Sign a new payment. |
+| Facilitator answers **settle** with `success: false` | `402 {}` | **no** | `success: false` + `errorReason` | **Uncertain** (attempted) | **Reconcile first** (below). |
+| Facilitator settle HTTP error or transport error (5xx, connection reset, DNS) | `402 {}` | **no** | `success: false`, `errorReason` such as `fetch failed` or `Facilitator settle failed (503)` | **Uncertain** | **Reconcile first**. |
+| Facilitator settle timeout or malformed answer | `502 {"error": "Facilitator settle request timed out ..."}` / `"... returned invalid JSON"` | **no** | none | **Uncertain** | **Reconcile first**. |
+| Your connection drops, no response | none | — | — | **Uncertain** | **Reconcile first**. |
 
-If an uncertain payment did settle and you got no data, open an issue with the transaction hash at https://github.com/bru1noia/vextorium-mcp/issues and we deliver the result or refund. The server never sends a new payment request for an uncertain result: the 502/402 above are terminal responses for that call.
+Rules:
+- **Before settlement** (verify rejected, or the service failed): nothing was submitted. A verify rejection is the only case with a fresh `PAYMENT-REQUIRED`.
+- **After settlement was attempted** (any `PAYMENT-RESPONSE` with `success: false`, a `502` about the facilitator, or no response): the server **never** sends a fresh `PAYMENT-REQUIRED`. The response is terminal for that call. A failed or missing settlement result is **not** proof that the payment cannot land later, so do not sign a new payment until you have reconciled.
+- The HTTP status alone does not tell a confirmed rejection from a transport error: both can be `402`. Always reconcile after an attempted settlement.
 
-**`maxTimeoutSeconds` (300 s on Base and Solana)** is the seller's limit for how long settlement of a request may take. It is **not** the signature's expiry: on Base the signed authorization expires at its own `validBefore` (set by the client, normally `now + maxTimeoutSeconds`); on Solana the transaction is valid until its recent blockhash expires (~60–90 s).
+**How to reconcile** (each step below is demonstrated on mainnet, read-only, with real Base and Solana payments in [`tests/reconciliation-demo.mjs`](tests/reconciliation-demo.mjs); output in [`tests/reconciliation-demo.output.txt`](tests/reconciliation-demo.output.txt)):
+- **Base (EIP-3009):** read `authorizationState(authorizer, nonce)` on the USDC contract, using your address and the nonce you signed.
+  - `true`: the payment settled. Do not pay again: open an issue at https://github.com/bru1noia/vextorium-mcp/issues with your address and the nonce (or the transaction hash), and we deliver the result or refund.
+  - `false`: it can still settle until `validBefore`. Retry only after `validBefore` has passed; after that it can never settle.
+- **Solana:** the transaction ID is the fee payer's signature, which you may not have. Check your USDC token account history (`getSignaturesForAddress`) for a transfer to `payTo`. If it is there, do not pay again: open an issue with that transaction and we deliver the result or refund. If there is none, retry only after the transaction's recent blockhash has expired (`lastValidBlockHeight` passed, about 60–90 s); after that it can never land.
+
+**`maxTimeoutSeconds` (300 s on Base and Solana)** is the seller's limit for how long settlement of a request may take. It is **not** the signature's expiry:
+- On Base, the signed authorization expires at its own `validBefore`. The standard `@x402/evm` client sets it to `now + maxTimeoutSeconds`.
+- On Solana, the transaction is valid until its recent blockhash expires (about 60–90 s), regardless of `maxTimeoutSeconds`.
 
 ## 5. Remote MCP server
 
@@ -99,7 +109,14 @@ The MCP server is part of the same application and process as the HTTP API. Each
 
 **Base — operator test, clearly labelled, 2026-10-16 22:12:20 UTC.** `POST https://api.vextorium.com/v1/fx-rates`, body `{"currencies":"EUR,JPY"}`, 0.004 USDC. Response `200` (`{"currencies":2,"types":[{"currency":"EUR","units_per_usd":0.888652,...}],"source":"Source: ECB statistics ..."}`). Decoded `PAYMENT-RESPONSE`: `{"success":true,"payer":"0xa8FC…868F","transaction":"0xf4ab31807b2498de8baa0a7106b2ccbcd26dfc9284626f9d4a32e95b1a10b76c","network":"eip155:8453"}` — https://basescan.org/tx/0xf4ab31807b2498de8baa0a7106b2ccbcd26dfc9284626f9d4a32e95b1a10b76c
 
-**Solana — real customer payment, 2026-10-14 17:00:19 UTC.** `POST` to the legacy alias of `/v1/eip712-review`, 0.005 USDC, network `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, payer `34CM…5v2z` — https://solscan.io/tx/rPZcUEk6r8MoQthXyrH8edKbk1ZtGs9eWFouufsp9vzC2XQcx93f81J4rM6yYZje9BcgdHeNyYcx9QuVaMqP3aV . The customer's response body was not kept (see privacy below).
+**Solana: customer payment with retained response (not an operator test), 2026-10-17 00:56:33 UTC.**
+- Request: `POST https://api.vextorium.com/v1/sec-company-ranking`, 0.006 USDC, network `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, payer `2WgR…Z23Wx` (redacted).
+- Request body: not retained (we never store request bodies). The response (metric `revenue`, period `CY2025`, 10 entries) matches the catalogue example body `{"metric": "revenue", "period": "CY2025", "limit": 10}`, which reproduces the call.
+- Response: `200`, 1644 bytes, sha256 `7de8b67a30835ea414de50aaa6f09bdbda67e56f8b8c78db1024e4d45b7e175a`. The data comes from public SEC filings: `{"metric":"revenue","period":"CY2025","companies":4384,"ranking":[{"company":"AMAZON.COM, INC.","ticker":"AMZN","value_usd":716924000000,"position":1},...],"source":"SEC EDGAR, XBRL frames (figures as reported by the companies)"}`.
+- Decoded `PAYMENT-RESPONSE`: `{"success":true,"payer":"2WgR…Z23Wx","transaction":"3MFE9Fp9DM7Y5MweKA4RXM3JMukcV3QN7opTqiPvixkbooEgZbNKz2Bo9v9BUYsB1v6KYZ7nvJbrpFgVfjFTH5PV","network":"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"}`
+- Explorer: https://solscan.io/tx/3MFE9Fp9DM7Y5MweKA4RXM3JMukcV3QN7opTqiPvixkbooEgZbNKz2Bo9v9BUYsB1v6KYZ7nvJbrpFgVfjFTH5PV (slot 457844994, 0.006 USDC to `HcjfmZ…t3pz2`, settled by the CDP facilitator).
+
+**Solana: historical customer payment, 2026-10-14 17:00:19 UTC.** `POST` to the legacy alias of `/v1/eip712-review`, 0.005 USDC, payer `34CM…5v2z`: https://solscan.io/tx/rPZcUEk6r8MoQthXyrH8edKbk1ZtGs9eWFouufsp9vzC2XQcx93f81J4rM6yYZje9BcgdHeNyYcx9QuVaMqP3aV . Its response body was not kept: responses have only been retained since 2026-10-16. At that time Solana was settled by our self-hosted facilitator; since 2026-10-16 it is settled by CDP.
 
 **Privacy.** Since 2026-10-16 the server keeps, with each payment, the delivered response and its sha256 only for services that return public-source data. Responses of services that process the customer's texts, secrets or personal data are never stored (https://vextorium.com/privacidad).
 

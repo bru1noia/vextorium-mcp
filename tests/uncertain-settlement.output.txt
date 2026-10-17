@@ -1,0 +1,10 @@
+case | HTTP | fresh PAYMENT-REQUIRED | PAYMENT-RESPONSE (decoded) | body | /settle calls
+ok | 200 | no | {"success":true,"payer":"0xPAYE…","transaction":"0xabababababababababababababababababababababababababababababababab","network":"eip155:8453"} | {"data":"result"} | 1
+upstream_down_handler_502 | 502 | no | null | {"error":"upstream unavailable"} | 0
+verify_rejected | 402 | YES | null | {} | 0
+settle_rejected | 402 | no | {"success":false,"errorReason":"invalid_exact_evm_payload_authorization_valid_before","payer":"0xPAYE…","transaction":"","network":"eip155:8453"} | {} | 1
+settle_http500_json | 402 | no | {"success":false,"errorReason":"unexpected_settle_error","errorMessage":"unexpected_settle_error","network":"eip155:8453","transaction":""} | {} | 1
+settle_http503_html | 402 | no | {"success":false,"errorReason":"Facilitator settle failed (503): <html>Service Unavailable</html>","errorMessage":"Facilitator settle failed (503): <html>Service Unavailable</html>","network":"eip155:8453","transaction":""} | {} | 1
+settle_malformed_200 | 502 | no | null | {"error":"Facilitator settle returned invalid JSON: not json"} | 1
+settle_timeout | 502 | no | null | {"error":"Facilitator settle request timed out after 1000ms"} | 1
+settle_connection_reset | 402 | no | {"success":false,"errorReason":"fetch failed","errorMessage":"fetch failed","network":"eip155:8453","transaction":""} | {} | 1

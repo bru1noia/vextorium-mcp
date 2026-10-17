@@ -1,0 +1,14 @@
+== Base ==
+signed authorization: from 0xa8FC…868F to 0xb9f0…1aCf value 4000 (USDC 6 dec), nonce 0xb1a2…7490
+  validAfter 1970-01-01T00:00:00.000Z  validBefore 2026-10-16T22:17:18.000Z  (settled in block 52699697 at 2026-10-16T22:12:21.000Z, 297 s before validBefore)
+1a. authorizationState(payer, signed nonce) = true  -> payment landed: do NOT pay again
+1b. authorizationState(payer, never-submitted nonce) = false  -> not landed (yet): wait for validBefore
+2.  simulate transferWithAuthorization with validBefore in the past -> REVERT: "authorization is expired"
+    -> after validBefore an unsettled authorization can never settle: retrying is safe
+
+== Solana ==
+payment tx 3MFE9F…H5PV slot 457844994 at 2026-10-17T00:56:32.000Z; fee payer BFK9TL…9b4F; buyer 2WgRFR…23Wx; buyer USDC account EfZ566…upZ2
+1.  getSignaturesForAddress(buyer USDC account): payment FOUND, err=null, finalized  -> landed: do NOT pay again
+2a. isBlockhashValid(recentBlockhash of that payment Hz3p3j…mTwE) = false
+2b. simulateTransaction with that expired blockhash -> err "BlockhashNotFound"
+    -> once the blockhash has expired an unlanded transaction can never land: retrying is safe
