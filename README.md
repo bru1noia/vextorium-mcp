@@ -1,8 +1,8 @@
-# Vextorium MCP — 500+ pay-per-call data tools for AI agents
+# Vextorium MCP — 232 pay-per-call data tools for AI agents
 
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/bru1noia/vextorium-mcp)
 
-Remote MCP server (Streamable HTTP) that gives any MCP client access to **500+ data services** paid per call in USDC or RLUSD with [x402](https://x402.org). No sign-up, no API keys, no subscriptions: failed calls are never charged.
+Remote MCP server (Streamable HTTP) that gives any MCP client access to **232 data services** paid per call in USDC or RLUSD with [x402](https://x402.org). No sign-up, no API keys, no subscriptions: failed calls are never charged.
 
 **Endpoint:** `https://api.vextorium.com/mcp`
 
