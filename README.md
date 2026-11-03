@@ -3,7 +3,7 @@
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/bru1noia/vextorium-mcp)
 [![Tested by Lumi](https://api.lumitrades.io/badge/vextorium.svg)](https://api.lumitrades.io/trust/v/vextorium)
 
-Remote MCP server (Streamable HTTP) that gives any MCP client access to **200+ pay-per-call APIs** in USDC or RLUSD via [x402](https://x402.org). No sign-up, no API keys, no subscriptions: failed calls are never charged. See the [live catalog](https://api.vextorium.com/catalog.json) for the current exact count and available services.
+**200+ pay-per-call APIs for AI agents via x402: on-chain data, DeFi, markets and compliance.** Connect over Streamable HTTP and pay in USDC or RLUSD. No sign-up, no API keys, no subscriptions: failed calls are never charged. See the [live catalog](https://api.vextorium.com/catalog.json) for the current exact count and available services.
 
 **Endpoint:** `https://api.vextorium.com/mcp`
 
