@@ -2,6 +2,7 @@
 
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/bru1noia/vextorium-mcp)
 [![Tested by Lumi](https://api.lumitrades.io/badge/vextorium.svg)](https://api.lumitrades.io/trust/v/vextorium)
+[![Vextorium MCP on mcprush](https://mcprush.com/badge/vextorium-mcp/score.svg)](https://mcprush.com/to/vextorium-mcp?ref=badge)
 
 **200+ pay-per-call APIs for AI agents via x402: on-chain data, DeFi, markets and compliance.** Connect over Streamable HTTP and pay in USDC or RLUSD. No sign-up, no API keys, no subscriptions: failed calls are never charged. See the [live catalog](https://api.vextorium.com/catalog.json) for the current exact count and available services.
 
