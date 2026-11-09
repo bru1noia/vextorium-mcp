@@ -14,14 +14,14 @@ This page covers the HTTP API and the remote MCP server. It does not offer facil
 
 - Paid routes are `https://api.vextorium.com/v1/<service>`.
 - A **paid call is always `POST`** with a JSON body (`content-type: application/json`). Use the route's `example_body` from catalog.json as the template.
-- An unsigned `GET` or `POST` to a paid route returns `402` with the payment terms, so clients can discover the price. A `GET` is never charged.
-- The price shown in the 402 is the price you pay. Most routes cost 0.003 USDC; some cost 0.001–0.05 USDC (see `price_usdc`).
-- Legacy Spanish paths (for example `/clasificar-pago`, `/revisar-firma-pago`) are aliases kept for old clients. Each has the same price as its `/v1` equivalent (`/v1/classify-text` and `/v1/eip712-review`, 0.005 USDC).
+- An unsigned `GET` or `POST` to a paid route returns `402` with the payment terms. Use POST for paid calls. A GET containing `PAYMENT-SIGNATURE` is also processed through payment verification and settlement; it is not a free probe.
+- The current signed offer determines the price; inspect `price_usdc` and `accepts[]` before paying. Prices and available routes can change.
+- Retired Spanish aliases and routes absent from the live catalog return 404. Use the current `/v1/` paths from catalog.json; historical examples below describe their date, not present availability.
 
-Example request body (`POST /v1/gas-price`, 0.003 USDC):
+Example request body (`POST /v1/crypto-price`; inspect the current offer for the price):
 
 ```json
-{"network": "base"}
+{"coins": "BTC,ETH", "currency": "EUR"}
 ```
 
 ## 2. Payment flow and headers
@@ -39,9 +39,17 @@ Scheme `exact`, x402 v2. Networks in scope for the registry review:
 | Base | `eip155:8453` | USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (6), EIP-3009 | `0xb9f06D2734B7E9D7b21B64C4D8b95bd774b71aCf` |
 | Solana | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | USDC `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (6) | `HcjfmZLgWRZzwj4deEiS7pewc4KBYSw39mW5nTyt3pz2` |
 
-The same 402 response also offers Polygon, Optimism, Arc and XRP Ledger. Those networks are outside this document's review scope.
+The production 402 also offers Polygon, Optimism, Arc, Stellar and XRP Ledger. These additional networks are outside the original Base/Solana registry review scope; their presence is not a claim of registry approval.
 
-Any standard x402 v2 client works: `@x402/fetch`, `@x402/axios`, the Python `x402` package, or our client `pip install vextorium`.
+Use an x402 v2 buyer client with the mechanism for your selected network registered. Stellar requires a Stellar-capable signer/client (for example `@x402/stellar`); EVM-only clients cannot pay a Stellar offer. The Vextorium Python client (`pip install vextorium`) currently pays on Base.
+
+### Stellar payments in production
+
+- Network: `stellar:pubnet`; USDC contract `CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75`, **7 decimals**.
+- Recipient: `GD6AWK4HTMG3FHNTXRFI2GZC2AQQCNQRFBMS5RXWYIJTEX2RR7GOYSAH`.
+- Facilitator: OpenZeppelin Built on Stellar. The client signs Soroban authorization entries for `transfer(from, to, amount)`; the facilitator verifies, submits and sponsors the transaction fee when the offer has `extra.areFeesSponsored: true`.
+- No XRPL-style `invoiceId` is needed. A successful call returns a `PAYMENT-RESPONSE` receipt with the transaction hash.
+- Production operator self-test, 2026-11-09: `POST /v1/ping`, 0.001 USDC (`amount=10000`), HTTP 200 and a successful settlement in ledger 65391792. [Transaction](https://stellar.expert/explorer/public/tx/ab293e7d87f14507f0575bb833bbdc29951a2be4aaf189266a6369d5dc5512cf). Source and destination were the same account: this validates the payment flow but is not a customer sale or a net increase in seller funds. The facilitator paid the network fee.
 
 ## 3. Settlement (seller side)
 
@@ -58,7 +66,9 @@ The server uses `@x402/express` 2.28. The order of operations is:
 
 The server buffers the result and settles **after** the service has answered < 400. The data is released only if settlement succeeds (`@x402/express` 2.28).
 
-What you receive after sending `PAYMENT-SIGNATURE` (measured with the test in [`tests/uncertain-settlement.test.mjs`](tests/uncertain-settlement.test.mjs): real `@x402/express` 2.28 and `HTTPFacilitatorClient` against a mock facilitator; output in [`tests/uncertain-settlement.output.txt`](tests/uncertain-settlement.output.txt)):
+The underlying SDK behavior is demonstrated in [`tests/uncertain-settlement.test.mjs`](tests/uncertain-settlement.test.mjs): real `@x402/express` 2.28 and `HTTPFacilitatorClient` against a mock facilitator; output in [`tests/uncertain-settlement.output.txt`](tests/uncertain-settlement.output.txt)). Those fixtures exercise the SDK directly. Production additionally applies the error filtering described below; raw provider error strings in historical fixture output are not the current public response.
+
+What you receive over HTTP after sending `PAYMENT-SIGNATURE`:
 
 | Situation | HTTP | `PAYMENT-REQUIRED` | `PAYMENT-RESPONSE` | Submitted? | What to do |
 |---|---|---|---|---|---|
@@ -66,9 +76,11 @@ What you receive after sending `PAYMENT-SIGNATURE` (measured with the test in [`
 | Invalid input, not found, upstream down (service answered ≥ 400) | that 4xx/5xx + `{"error": ...}` | no | none | **No** (settle never called) | Fix the request and retry. |
 | Facilitator rejects **verify** | `402` | **yes** (fresh terms) | none | **No** | Sign a new payment. |
 | Facilitator answers **settle** with `success: false` | `402 {}` | **no** | `success: false` + `errorReason` | **Uncertain** (attempted) | **Reconcile first** (below). |
-| Facilitator settle HTTP error or transport error (5xx, connection reset, DNS) | `402 {}` | **no** | `success: false`, `errorReason` such as `fetch failed` or `Facilitator settle failed (503)` | **Uncertain** | **Reconcile first**. |
-| Facilitator settle timeout or malformed answer | `502 {"error": "Facilitator settle request timed out ..."}` / `"... returned invalid JSON"` | **no** | none | **Uncertain** | **Reconcile first**. |
+| Facilitator settle HTTP error or transport error (5xx, connection reset, DNS) | `402 {}` | **no** | `success: false` with an allowlisted error code or a fixed unavailability message | **Uncertain** | **Reconcile first**. |
+| Facilitator settle timeout or malformed answer | `502` with a fixed timeout or invalid-response message | **no** | none | **Uncertain** | **Reconcile first**. |
 | Your connection drops, no response | none | — | — | **Uncertain** | **Reconcile first**. |
+
+**Production error filtering (2026-11-09).** Facilitator verify/settle responses are rebuilt from approved fields. Provider free-text messages, original error causes and arbitrary extension fields are discarded; errors use known codes and fixed messages. Payment identifiers are validated before being included in receipts. Facilitator diagnostics and application failure logs omit internal details. This mitigates the reproduced conditional propagation of payment data in reflected upstream errors; it does not establish that real credentials were previously exposed. The change passed 70 isolated checks covering the SDK, the complete server, and deployment/rollback.
 
 Rules:
 - **Before settlement** (verify rejected, or the service failed): nothing was submitted. A verify rejection is the only case with a fresh `PAYMENT-REQUIRED`.
@@ -92,20 +104,23 @@ Rules:
 | Endpoint | `https://api.vextorium.com/mcp` |
 | Transport | Streamable HTTP, stateless (no session id), JSON responses. `POST` only; `GET` and `DELETE` return 405. |
 | Setup | Add it as a remote MCP server URL in Claude, Cursor or any MCP client. It is also listed in the official MCP Registry. |
-| Free tools | `search_services(query, limit)` and `service_details(service)` |
+| Free tools | `current_date()`, `search_services(query, limit)` and `service_details(service)` |
 | Paid tool | `call_service(service, params)`, which uses x402 over MCP (`@x402/mcp` 2.28) |
 
 How `call_service` handles payment:
-- Without payment, the tool result carries the x402 `PaymentRequired` terms (same `accepts[]` as HTTP).
+- Without payment, the tool result carries x402 `PaymentRequired` terms for networks supported over MCP. The HTTP-only XRPL options are excluded.
 - The client retries with the signed payment in `_meta["x402/payment"]`.
 - The receipt comes back in `_meta["x402/payment-response"]`.
 - Same rule as HTTP: the call is settled only after the service succeeds.
+- On uncertain settlement, reconcile before signing again. The MCP SDK can include fresh payment terms in a settlement-failure result; their presence does not prove that the previous payment cannot settle. The HTTP terminal-response behavior in section 4 must not be assumed for MCP.
 
-MCP networks: Base, Solana, Polygon, Optimism and Arc, the same as HTTP except XRP Ledger. XRPL payments need a per-request `invoiceId`, which the MCP flow does not carry.
+MCP USDC networks: Base, Solana, Polygon, Optimism, Arc and Stellar. HTTP additionally supports XRP Ledger. XRPL payments need a per-request `invoiceId`, which the MCP flow does not carry.
 
 The MCP server is part of the same application and process as the HTTP API. Each paid call goes to the same backend service at the same price and to the same `payTo`.
 
-## 6. Evidence (anonymised)
+The current HTTP catalog has 244 routes; 242 are available through MCP. `/v1/ping` and `/v1/my-ip` are HTTP-only.
+
+## 6. Historical evidence (anonymised)
 
 **Base — operator test, clearly labelled, 2026-10-16 22:12:20 UTC.** `POST https://api.vextorium.com/v1/fx-rates`, body `{"currencies":"EUR,JPY"}`, 0.004 USDC. Response `200` (`{"currencies":2,"types":[{"currency":"EUR","units_per_usd":0.888652,...}],"source":"Source: ECB statistics ..."}`). Decoded `PAYMENT-RESPONSE`: `{"success":true,"payer":"0xa8FC…868F","transaction":"0xf4ab31807b2498de8baa0a7106b2ccbcd26dfc9284626f9d4a32e95b1a10b76c","network":"eip155:8453"}` — https://basescan.org/tx/0xf4ab31807b2498de8baa0a7106b2ccbcd26dfc9284626f9d4a32e95b1a10b76c
 
@@ -118,6 +133,6 @@ The MCP server is part of the same application and process as the HTTP API. Each
 
 **Solana: historical customer payment, 2026-10-14 17:00:19 UTC.** `POST` to the legacy alias of `/v1/eip712-review`, 0.005 USDC, payer `34CM…5v2z`: https://solscan.io/tx/rPZcUEk6r8MoQthXyrH8edKbk1ZtGs9eWFouufsp9vzC2XQcx93f81J4rM6yYZje9BcgdHeNyYcx9QuVaMqP3aV . Its response body was not kept: responses have only been retained since 2026-10-16. At that time Solana was settled by our self-hosted facilitator; since 2026-10-16 it is settled by CDP.
 
-**Privacy.** Since 2026-10-16 the server keeps, with each payment, the delivered response and its sha256 only for services that return public-source data. Responses of services that process the customer's texts, secrets or personal data are never stored (https://vextorium.com/privacidad).
+**Privacy.** Since 2026-10-16 the server keeps, with each payment, the delivered response and its sha256 only for services that return public-source data. Responses of services that process the customer's texts, secrets or personal data are never stored (https://vextorium.com/privacy).
 
 **Service availability.** Some routes return `503` (no charge) while they are under maintenance; they are not listed in `/catalog.json`.

@@ -4,30 +4,35 @@
 [![Tested by Lumi](https://api.lumitrades.io/badge/vextorium.svg)](https://api.lumitrades.io/trust/v/vextorium)
 [![Vextorium MCP on mcprush](https://mcprush.com/badge/vextorium-mcp/score.svg)](https://mcprush.com/to/vextorium-mcp?ref=badge)
 
-**200+ pay-per-call APIs for AI agents via x402: on-chain data, DeFi, markets and compliance.** Connect over Streamable HTTP and pay in USDC or RLUSD. No sign-up, no API keys, no subscriptions: failed calls are never charged. See the [live catalog](https://api.vextorium.com/catalog.json) for the current exact count and available services.
+**200+ pay-per-call data APIs for AI agents:** official statistics and economic data, crypto prices, compliance checks, public records and web/data utilities. Connect over Streamable HTTP; no service API key, signup or subscription. See the [live catalog](https://api.vextorium.com/catalog.json) for the exact current count and available services.
 
-**Endpoint:** `https://api.vextorium.com/mcp`
+**MCP endpoint:** `https://api.vextorium.com/mcp`
 
 ## Tools
 
 | Tool | Cost | What it does |
 |---|---|---|
-| `search_services` | free | Search the catalog by keywords (`"token safety solana"`, `"ECB rates"`, `"sanctions"`) |
-| `service_details` | free | Inputs (JSON schema), example and price of one service |
-| `call_service` | per call (from $0.001) | Run any service and get JSON; paid via x402 in USDC (Base, Solana, Polygon) or RLUSD (XRPL) |
+| `current_date` | free | Current date and time in Europe/Madrid |
+| `search_services` | free | Search the catalog by keywords, such as `ECB rates`, `crypto prices` or `sanctions` |
+| `service_details` | free | Input schema, example, price and payment networks for one service |
+| `call_service` | per call (from $0.001) | Run a supported service and return its JSON result, paid via x402 |
 
-## What's inside
+The HTTP catalog currently lists **244 routes**; **242 are available through MCP**. `/v1/my-ip` and `/v1/ping` are HTTP-only because their results refer to the HTTP client's IP. These are services exposed through `call_service`, not hundreds of separate MCP tools.
 
-- **Trading bots:** token safety verdicts (EVM and Solana), batch checks of 25 tokens, wash-trading detection, pre-trade check (risk + liquidity + price impact), position monitoring, new tokens that pass safety filters
-- **Wallets and on-chain data:** balances and portfolios on 30+ chains (EVM, Solana, Bitcoin, Tron, TON, Cosmos, Sui, Aptos, Cardano…), transaction decoding, token approvals, ENS/Basenames
-- **Markets:** Hyperliquid (funding, whales, liquidation map), Polymarket, DeFi yields, stablecoin depeg monitor, crypto news, market regime
-- **Economy:** central bank rates, Treasury yield curve, inflation, FX, economic calendar, official statistics (Eurostat, World Bank, BLS, ECB)
-- **Compliance:** sanctions screening (EU, OFAC, UN), LEI, VAT (VIES), IBAN
-- **Web and developer tools:** web page to markdown, JSON repair, PDF text and tables, LLM token counter, DNS/SSL/security headers, regex, JSONPath
+## Available data and tools
 
-## Use it
+- **Economy:** central-bank rates, inflation, FX, Treasury yield curves, economic calendar and official statistics.
+- **Companies and public records:** SEC filings and financial data, EU and Spanish public records, tenders and grants.
+- **Crypto prices and calculations:** prices by ticker, conversions, portfolio valuation, PnL and risk calculators.
+- **Compliance:** sanctions screening, wallet sanctions checks, LEI, VAT/VIES and IBAN validation.
+- **Web and data utilities:** DNS, SSL and security headers, JSON/CSV tools, text utilities, regex and JSONPath.
+- **Science and public data:** weather, earthquakes, research and reference lookups.
 
-Claude Desktop / Cursor / any MCP client (remote server):
+The live catalog is authoritative. Older token-safety, Hyperliquid and XRPL node-data services are not advertised here because they are absent from the current catalog.
+
+## Connect
+
+Add the remote server in Claude, Cursor or another MCP client:
 
 ```json
 {
@@ -37,9 +42,11 @@ Claude Desktop / Cursor / any MCP client (remote server):
 }
 ```
 
-Paid calls need an x402-capable MCP client or wallet (e.g. AgentCash, Coinbase awal). Without one, `search_services` and `service_details` still work.
+The three free tools work without a wallet. Paid calls require an x402-capable buyer client that supports the selected network; adding an MCP URL alone does not enable payment.
 
-Plain HTTP works too: every service is `POST https://api.vextorium.com/v1/<service>` with a JSON body. The first call returns HTTP 402 with the price; pay and retry.
+MCP payments use **USDC on Base, Solana, Polygon, Optimism, Arc or Stellar**. The HTTP API also accepts **RLUSD or XRP on the XRP Ledger**. XRPL payment options are not exposed over MCP. Consult the current payment challenge and [buyer guide](PAYMENTS.md) before paying.
+
+Plain HTTP: send a JSON body to `POST https://api.vextorium.com/v1/<service>`. An unsigned request returns HTTP 402 with the price and payment options. Service failures before settlement are not charged; if settlement is attempted but its result is uncertain, reconcile before paying again as explained in [PAYMENTS.md](PAYMENTS.md).
 
 - Catalog: https://api.vextorium.com/catalog.json
 - OpenAPI 3.1: https://api.vextorium.com/openapi.json
@@ -48,7 +55,7 @@ Plain HTTP works too: every service is `POST https://api.vextorium.com/v1/<servi
 
 ## Data and privacy
 
-Only open, redistributable and on-chain data sources. Inputs are processed in memory and not stored. Not financial or legal advice. Terms: https://api.vextorium.com/legal
+Inputs are processed in memory. Payment records are retained; for selected services returning public-source data, the delivered response and its hash are also retained as proof of delivery. Responses containing customer text, secrets or personal data are not retained. See the [privacy policy](https://vextorium.com/privacy) and [terms](https://vextorium.com/legal).
 
 ## License
 
