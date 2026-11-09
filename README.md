@@ -3,6 +3,7 @@
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/bru1noia/vextorium-mcp)
 [![Tested by Lumi](https://api.lumitrades.io/badge/vextorium.svg)](https://api.lumitrades.io/trust/v/vextorium)
 [![Vextorium MCP on mcprush](https://mcprush.com/badge/vextorium-mcp/score.svg)](https://mcprush.com/to/vextorium-mcp?ref=badge)
+[![Lumière PayCheck: live grade for abi-decode](https://lumierepaycheck.org/badge?url=https%3A%2F%2Fapi.vextorium.com%2Fv1%2Fabi-decode)](https://lumierepaycheck.org/sellers/api.vextorium.com)
 
 **200+ pay-per-call data APIs for AI agents:** official statistics and economic data, crypto prices, compliance checks, public records and web/data utilities. Connect over Streamable HTTP; no service API key, signup or subscription. See the [live catalog](https://api.vextorium.com/catalog.json) for the exact current count and available services.
 
