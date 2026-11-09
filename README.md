@@ -53,6 +53,12 @@ Plain HTTP: send a JSON body to `POST https://api.vextorium.com/v1/<service>`. A
 - Agent guide: https://api.vextorium.com/llms.txt
 - Website: https://vextorium.com
 
+## Independent route check
+
+[![ECB rates history: settlement verified on PayAPI Market](https://payapi.market/badge/vextorium-ecb-rates-history.svg)](https://payapi.market/api/vextorium-ecb-rates-history)
+
+[PayAPI Market lists Vextorium's ECB rates history route](https://payapi.market/api/vextorium-ecb-rates-history). Its published check records a $0.003 USDC test payment on Base on 2026-10-23 for `POST /v1/ecb-rates-history`. This verification covers that route and payment network only.
+
 ## Data and privacy
 
 Inputs are processed in memory. Payment records are retained; for selected services returning public-source data, the delivered response and its hash are also retained as proof of delivery. Responses containing customer text, secrets or personal data are not retained. See the [privacy policy](https://vextorium.com/privacy) and [terms](https://vextorium.com/legal).
