@@ -1,0 +1,7 @@
+{
+  "name": "vextorium-free-mcp-example",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node client.mjs" },
+  "dependencies": { "@modelcontextprotocol/sdk": "1.32.0" }
+}

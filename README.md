@@ -9,6 +9,14 @@
 
 **MCP endpoint:** `https://api.vextorium.com/mcp`
 
+## Try it free
+
+Connect your remote MCP client to `https://api.vextorium.com/mcp` and ask it to call `current_date`. It returns the live date and local time in Europe/Madrid, plus a UTC timestamp. No wallet, account or API key is needed.
+
+Then explore the catalog with `search_services` and `service_details`, both free. Paid services are separate and require an appropriate payment client.
+
+[Run the complete free client](examples/current-date/README.md) · [Website](https://vextorium.com)
+
 ## Tools
 
 | Tool | Cost | What it does |
