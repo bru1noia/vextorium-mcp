@@ -118,7 +118,7 @@ MCP USDC networks: Base, Solana, Polygon, Optimism, Arc and Stellar. HTTP additi
 
 The MCP server is part of the same application and process as the HTTP API. Each paid call goes to the same backend service at the same price and to the same `payTo`.
 
-The current HTTP catalog has 244 routes; 242 are available through MCP. `/v1/ping` and `/v1/my-ip` are HTTP-only.
+The HTTP catalog has 200+ routes; all except `/v1/ping` and `/v1/my-ip` (HTTP-only) are available through MCP.
 
 ## 6. Historical evidence (anonymised)
 

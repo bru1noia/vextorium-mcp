@@ -26,7 +26,7 @@ Then explore the catalog with `search_services` and `service_details`, both free
 | `service_details` | free | Input schema, example, price and payment networks for one service |
 | `call_service` | per call (from $0.001) | Run a supported service and return its JSON result, paid via x402 |
 
-The HTTP catalog currently lists **244 routes**; **242 are available through MCP**. `/v1/my-ip` and `/v1/ping` are HTTP-only because their results refer to the HTTP client's IP. These are services exposed through `call_service`, not hundreds of separate MCP tools.
+The HTTP catalog lists **200+ routes**; **all except `/v1/my-ip` and `/v1/ping` are available through MCP** (those two are HTTP-only because their results refer to the HTTP client's IP). These are services exposed through `call_service`, not hundreds of separate MCP tools.
 
 ## Available data and tools
 
